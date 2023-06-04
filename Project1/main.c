@@ -390,6 +390,25 @@ void printCanvas(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
         }
         printf("\033[0m|\n");
     }
+    printf("\n");
+    
+    if (state->E_coldtime>0) {
+        printf("    ");
+        printf("\033[31m (E) cold time : %d      \n\033[0m",state->E_coldtime);
+        printf("                               ");
+    }
+    else if (state->E_coldtime==0 && state->E_status==0) {
+        
+        printf("        ");
+        printf("(E) is ready   \n");
+        printf("                               ");
+    }
+    else if (state->E_status==1) {
+        printf("  ");
+        printf("Use WASD to move the arrow\n");
+        printf("  ");
+        printf("Press (LFT shift) to confirm\n");
+    }
 
     Shape shapeData = shapes[state->queue[1]];
     printf("\033[%d;%dHNext:", 3, CANVAS_WIDTH * 2 + 8);
@@ -464,13 +483,17 @@ void logic(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
     else if (LEFT_FUNC()) {
         if (move(canvas, state->x, state->y, state->rotate, state->x - 1, state->y, state->rotate, state->queue[0]))
         {
-            state->x -= 1;
+            if (state->E_status!=1) {
+                state->x -= 1;
+            }
         }
     }
     else if (RIGHT_FUNC()) {
         if (move(canvas, state->x, state->y, state->rotate, state->x + 1, state->y, state->rotate, state->queue[0]))
         {
-            state->x += 1;
+            if (state->E_status != 1) {
+                state->x += 1;
+            }
         }
     }
     else if (DOWN_FUNC()) {
@@ -513,27 +536,31 @@ void logic(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
         }
     }
     else if (SHIFT_FUNC()) {
-        int surface = find_surface(canvas, &state);
-        if (state->choose_xy_arrow == 0) {
-            for (int j = state->arrow_place_x; j > surface; j--)
-            {
-                for (int k = 0; k < CANVAS_WIDTH; k++)
+        if (state->E_status == 1) {
+            if (state->choose_xy_arrow == 0) {
+                for (int j = state->arrow_place_x; j > 0; j--)
                 {
-                    setBlock(&canvas[j][k], canvas[j - 1][k].color, canvas[j - 1][k].shape, false);
-                    resetBlock(&canvas[j - 1][k]);
+                    for (int k = 0; k < CANVAS_WIDTH; k++)
+                    {
+                        setBlock(&canvas[j][k], canvas[j - 1][k].color, canvas[j - 1][k].shape, false);
+                        resetBlock(&canvas[j - 1][k]);
+                    }
                 }
+                
             }
-            state->arrow_place_x++;
-        }
-        else {
-            for (int i = 0; i < CANVAS_HEIGHT;i++) {
-                resetBlock(&canvas[i][state->arrow_place_y-1]);
+            else {
+                for (int i = 0; i < CANVAS_HEIGHT; i++) {
+                    resetBlock(&canvas[i][state->arrow_place_y - 1]);
+                }
+                
+                
             }
+            state->E_status = 0;
+            state->E_coldtime = 5;
+            state->arrow_place_x = 0;
+            state->arrow_place_y = 1;
+            state->choose_xy_arrow = 0;
         }
-        state->E_status = 0;
-        state->E_coldtime = 5;
-        state->arrow_place_x = 0;
-        state->arrow_place_y = 1;
     }
     
 
@@ -544,22 +571,22 @@ void logic(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
         
 
         if (move(canvas, state->x, state->y, state->rotate, state->x, state->y + 1, state->rotate, state->queue[0])) {
-            if (state->E_status != 1) {
-                state->y++;
-            }
-            
+            state->y++;
         }
         else {
-            state->score += clearLine(canvas);
+            if (state->E_status!=1) {
+                state->score += clearLine(canvas);
 
-            state->x = CANVAS_WIDTH / 2;
-            state->y = 0;
-            state->rotate = 0;
-            state->fallTime = 0;
-            state->queue[0] = state->queue[1];
-            state->queue[1] = state->queue[2];
-            state->queue[2] = state->queue[3];
-            state->queue[3] = rand() % 7;
+                state->x = CANVAS_WIDTH / 2;
+                state->y = 0;
+                state->rotate = 0;
+                state->fallTime = 0;
+                state->queue[0] = state->queue[1];
+                state->queue[1] = state->queue[2];
+                state->queue[2] = state->queue[3];
+                state->queue[3] = rand() % 7;
+                state->E_coldtime--;
+            }
 
             if (!move(canvas, state->x, state->y, state->rotate, state->x, state->y, state->rotate, state->queue[0]))
             {
@@ -571,19 +598,6 @@ void logic(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
     return;
 }
 
-int find_surface(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state) {
-    int surface_row;
-    for (int i = 0; i < CANVAS_HEIGHT; i++) {
-        for (int j = 0; j < CANVAS_WIDTH; j++) {
-            if (canvas[i][j].shape != EMPTY) {
-                surface_row = i;
-                break;
-            }
-        }
-    }
-
-    return surface_row;
-}
 
 int main()
 {
@@ -622,8 +636,9 @@ int main()
 
     while (1)
     {
-        logic(canvas, &state);
         printCanvas(canvas, &state);
+        logic(canvas, &state);
+        
         Sleep(100);
     }
 
